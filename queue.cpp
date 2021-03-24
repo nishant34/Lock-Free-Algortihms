@@ -9,15 +9,27 @@ class Node{
     Node* next;
     
     Node(int value){
-        value = value;
-        next = NULL;
+        this->value = value;
+        this->next = NULL;
     }
 
 };
 
-bool cas(Node *mem, Node* with, Node* cmp)
+
+bool cas(atomic<Node*> &mem, Node* cmp, Node* with)
 {
-    return __sync_val_compare_and_swap(mem, cmp, with);
+    //return __sync_val_compare_and_swap(mem, cmp, with);
+    return mem.compare_exchange_strong(cmp, with,  memory_order_release, memory_order_relaxed);
+    
+    //non atomic cass
+    // if(mem==cmp){
+    //     mem = with;
+    //     // cout<<mem->value;
+    //     return true;
+    // }
+    
+    // return false;
+
 }
 
 
@@ -26,16 +38,22 @@ class Lock_Free_Queue{
     
     
     public:
-    Node* head;
-    Node* tail;
-    Lock_Free_Queue(){
-        Node* sentinel = new Node(-1);
-        Node* head = sentinel;
-        Node* tail = sentinel;
-    }
+    atomic<Node*> head;
+    atomic<Node*> tail;
+    // Lock_Free_Queue(Node* sentinel){
+        
+    //      head = sentinel;
+    //      tail = sentinel;
+    //      //cas(head, NULL, sentinel);
+    // }
+    //~Lock_Free_Queue();
+    Lock_Free_Queue();
+    Lock_Free_Queue(Node* sentinel) :head(sentinel), tail(sentinel)
+    
+    {}
     
     void enqueue(int value){
-        
+        cout<<"enque"<<endl;
         Node* t = new Node(value);
         
         while(true){
@@ -45,10 +63,19 @@ class Lock_Free_Queue{
             
             if(last == tail){
                 if(next == NULL){
-                   
-                   if(cas(last->next,NULL,t))
-                   {cas(tail, last, t);
-                   return;}
+                  
+                   //if(cas(last->next,NULL,t))
+                  // {cas(tail, last, t);
+                   //cout<<last->value<<endl;
+                   //return;}
+                    Node* curr_node = head.load(memory_order_relaxed);
+                    Node* t_1 = curr_node->next;
+                    //cout<<t_1->value;
+                    while(t_1!=NULL){
+                    t_1 = t_1->next;   
+                    }                
+                   cas(tail, last, t);
+                   return;
                     
                 }else{
             
@@ -57,6 +84,14 @@ class Lock_Free_Queue{
             }  
         
         }
+        Node* curr_node = head.load(memory_order_relaxed);
+        Node* t_1 = curr_node->next;
+         cout<<t_1->value; 
+         while(t_1!=NULL){
+         cout<<"Loudu"<<endl;
+         cout<<t_1->value<<" ";
+         t_1 = t_1->next;
+     }
         
     }   
     
@@ -64,15 +99,15 @@ class Lock_Free_Queue{
     int deque(){
      
         while(true){
+            cout<<"Dequeeee"<<endl;
             Node* first = head;
             Node* next = first->next;
             Node* last = tail;
-            
             if(first == last){
                 if(next == NULL)
                 
-                //throw std::underflow_error();
-                throw "called deque on empty queue";
+                throw underflow_error("called deque on empty queue");
+                //cout<<"called deque on empty queue";
                 
                 else{
                     cas(tail, last, next);
@@ -91,30 +126,40 @@ class Lock_Free_Queue{
 
 };
 void printQueue(Lock_Free_Queue q){
-    Node* t = q.head;
-    while(t != q.tail){
-        cout<<t->value<<" ";
-        t = t->next;
-    }
-    cout<<t->value<<" "<<endl;
+    Node* curr_node = q.head.load(memory_order_relaxed);
+    cout<<curr_node->value;
+     Node* t = curr_node->next;
+     //t = t->next;
+    while(t!=NULL){
+
+         cout<<t->value<<" ";
+         t = t->next;
+     }
+    // if(t!=NULL){
+     //cout<<t->value<<" "<<endl;
+     //}
 }
 
 int main(){
     
-    Lock_Free_Queue q;
+    Node* sentinel = new Node(-1);
+    Lock_Free_Queue q(sentinel);
     
-    q.enqueue(10);
-    printQueue(q);
-    q.enqueue(20);
-    printQueue(q);
-    q.enqueue(30);
-    printQueue(q);
-    q.deque();
-    printQueue(q);
+q.enqueue(10);
+printQueue(q);
+q.enqueue(20);
+printQueue(q);
+q.enqueue(30);
+printQueue(q);
+q.deque();
+printQueue(q);
+q.enqueue(30);
+printQueue(q);
+q.enqueue(30);
+
+q.deque();
+
+
+
     
 }
-
-
-
-
-
