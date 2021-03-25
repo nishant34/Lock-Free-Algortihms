@@ -14,7 +14,10 @@ public:
     this->next = NULL;
   }
 };
-
+// template <class _Tp>
+// std::atomic<_Tp*>& std::atomic<_Tp*>::operator=(const std::atomic<_Tp*>&
+// head){ return head;
+// }
 template <class T>
 bool compare_and_exchange(std::atomic<Node<T> *> &mem, Node<T> *cmp,
                           Node<T> *with) {
@@ -22,6 +25,18 @@ bool compare_and_exchange(std::atomic<Node<T> *> &mem, Node<T> *cmp,
   // compare_exchage_strong function in atomic class in C++
   return mem.compare_exchange_strong(cmp, with, std::memory_order_release,
                                      std::memory_order_relaxed);
+}
+template <class T>
+bool compare_and_exchange_new(Node<T> **mem, Node<T> *cmp, Node<T> *with) {
+  // atomic compare and exchange function using the inbuilt
+  // compare_exchage_strong function in atomic class in C++
+  std::atomic<Node<T> *> temp(*mem);
+  if (temp.compare_exchange_strong(cmp, with, std::memory_order_release,
+                                   std::memory_order_relaxed)) {
+    *mem = temp.load(std::memory_order_relaxed);
+    return true;
+  }
+  return false;
 }
 
 template <class T> class Lock_Free_Queue {
@@ -34,6 +49,7 @@ public:
   std::atomic<Node<T> *> tail;
 
   // A default constructor
+
   Lock_Free_Queue();
   // Initializing the Lock free queue with a given sentinel using an initializer
   // list
@@ -41,7 +57,10 @@ public:
       : head(sentinel), tail(sentinel)
 
   {}
-
+  Lock_Free_Queue(const Lock_Free_Queue &q) {
+    head = q.head;
+    tail = q.tail;
+  }
   void enqueue(T value) {
     // initializing  the Node to be added
     Node<T> *t = new Node<T>(value);
@@ -60,10 +79,24 @@ public:
         // if this is not the case then the tail pointer at the wrong node.
         if (next == NULL) {
           // atomically adding the node to be appended to the linked list
-          if (compare_and_exchange(last->next, NULL, t)) {
+          if (compare_and_exchange_new<T>(&last->next, NULL, t)) {
+            // comparing head with tail to check the base case which is enquing
+            // the first node in our queue. So head->next needs to be updated.
+            if (tail == head) {
+              compare_and_exchange(tail, last, t);
+              compare_and_exchange_new<T>(
+                  &head.load(std::memory_order_relaxed)->next, NULL, last);
+            }
             // updating the tail pointer and as the node is appended so function
             // returns
             compare_and_exchange(tail, last, t);
+            // printng the first(node after the sentinel node) value and tail
+            // value after each enqueue operation.
+            // just for testing purpose, will be removed later.
+            std::cout << head.load(std::memory_order_relaxed)->next->value
+                      << " ";
+            std::cout << tail.load(std::memory_order_relaxed)->value
+                      << std::endl;
 
             return;
           }
@@ -112,39 +145,19 @@ public:
     return 1;
   }
 };
-
-template <class T> void printQueue(Lock_Free_Queue<T> q) {
-  // function to print a queue instance of the previously defined class.
-
-  // putting the current value of atomic head to the curr_node
-  Node<T> *curr_node = q.head.load(std::memory_order_relaxed);
-  std::cout << curr_node->value;
-  Node<T> *t = curr_node->next;
-
-  while (t != NULL) {
-
-    std::cout << t->value << " ";
-    t = t->next;
-  }
-}
-
 int main() {
 
   // defining a sentinel node for the queue and iniitializing a lock free queue
-  Node<int> *sentinel = new Node<int>(-1);
-  Lock_Free_Queue<int> q(sentinel);
+  // Node<int> * t(-1);
+  Node<int> *sentinal = new Node<int>(-1);
+  Lock_Free_Queue<int> q(sentinal);
 
   // testing the queue
   q.enqueue(10);
-  printQueue(q);
   q.enqueue(20);
-  printQueue(q);
   q.enqueue(30);
-  printQueue(q);
-  q.deque();
-  printQueue(q);
-  q.enqueue(30);
-  printQueue(q);
-  q.enqueue(30);
-  q.deque();
+
+  Node<int> *temp = q.head.load(std::memory_order_relaxed);
+
+  //  printQueue(q);
 }
