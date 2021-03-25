@@ -141,7 +141,6 @@ public:
 int main() {
 
   // defining a sentinel node for the queue and iniitializing a lock free queue
-  // Node<int> * t(-1);
   Node<int> *sentinal = new Node<int>(-1);
   Lock_Free_Queue<int> q(sentinal);
 
@@ -150,7 +149,5 @@ int main() {
   q.enqueue(20);
   q.enqueue(30);
 
-  Node<int> *temp = q.head.load(std::memory_order_relaxed);
-
-  //  printQueue(q);
+   
 }
