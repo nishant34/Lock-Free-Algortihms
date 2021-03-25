@@ -14,10 +14,6 @@ public:
     this->next = NULL;
   }
 };
-// template <class _Tp>
-// std::atomic<_Tp*>& std::atomic<_Tp*>::operator=(const std::atomic<_Tp*>&
-// head){ return head;
-// }
 template <class T>
 bool compare_and_exchange(std::atomic<Node<T> *> &mem, Node<T> *cmp,
                           Node<T> *with) {
@@ -57,10 +53,7 @@ public:
       : head(sentinel), tail(sentinel)
 
   {}
-  Lock_Free_Queue(const Lock_Free_Queue &q) {
-    head = q.head;
-    tail = q.tail;
-  }
+
   void enqueue(T value) {
     // initializing  the Node to be added
     Node<T> *t = new Node<T>(value);
