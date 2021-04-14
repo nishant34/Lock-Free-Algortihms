@@ -31,9 +31,6 @@ public:
   std::atomic<Node<T> *> tail;
   Node<T> *p;
 
-  // A default constructor
-
-  Lock_Free_Queue();
   // Initializing the Lock free queue with a given sentinel using an initializer
   // list
   Lock_Free_Queue(Node<T> *sentinel)
