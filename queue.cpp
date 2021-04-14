@@ -1,7 +1,9 @@
-#include <atomic>
-#include <iostream>
 #include <algorithm>
+#include <atomic>
+#include <execution>
+#include <iostream>
 #include <vector>
+#include <boost/range/irange.hpp>
 
 template <class T> class Node {
   // Node class representing a node of a linked list consiisting of a value data
@@ -39,7 +41,7 @@ public:
 
   {}
 
-  inline void  enqueue(T value) {
+  inline void enqueue(T value) {
     // initializing  the Node to be added
     Node<T> *temp = new Node<T>(value);
     std::atomic<Node<T> *> t(temp);
@@ -54,25 +56,25 @@ public:
       // std::cout<<"1"<<"\n";
       // if no other Node appended itself during this time.
       if (last == tail) {
-        std::cout<<"2"<<"\n";
+
         // if this is not the case then the tail pointer at the wrong node.
         if (last.load(std::memory_order_relaxed)
                 ->next1.load(std::memory_order_relaxed) == NULL) {
           // atomically adding the node to be appended to the linked list
-          std::cout<<"3"<<"\n";
+
           if (last.load(std::memory_order_relaxed)
                   ->next1.compare_exchange_strong(temp->next, t,
                                                   std::memory_order_release,
                                                   std::memory_order_relaxed)) {
             // comparing head with tail to check the base case which is enquing
             // the first node in our queue. So head->next needs to be updated.
-            std::cout<<"4"<<"\n";
-            if (tail == head) {
+
+            if (last == head) {
               Node<T> *a = last.load(std::memory_order_relaxed);
               tail.compare_exchange_strong(a, t.load(std::memory_order_relaxed),
                                            std::memory_order_release,
-                                           std::memory_order_relaxed);  
-              head.compare_exchange_strong(p, tail, std::memory_order_release,
+                                           std::memory_order_relaxed);
+              head.compare_exchange_strong(p, t.load(std::memory_order_relaxed), std::memory_order_release,
                                            std::memory_order_relaxed);
             }
             // updating the tail pointer and as the node is appended so function
@@ -90,7 +92,7 @@ public:
           // updated. comparing the tail pointer with the last to check if no
           // new node is appended and then updating it to the actual last
           // position
-          std::cout<<"5"<<"\n";
+       
           Node<T> *c = last.load(std::memory_order_relaxed);
           tail.compare_exchange_strong(
               c,
@@ -159,47 +161,35 @@ public:
 };
 
 void printQ(Lock_Free_Queue<int> &q) {
+  int count=0;
 
   Node<int> *t = q.head.load(std::memory_order_relaxed);
   while (t != NULL) {
     std::cout << t->value << " ";
+    count++;
     t = t->next1.load(std::memory_order_relaxed);
   }
   std::cout << "\n";
+  std::cout<<count<<"\n";
 }
 
 Node<int> *sentinal = new Node<int>(-1);
 Lock_Free_Queue<int> q(sentinal);
 
-void my(int i){
-  q.enqueue(i);
-}
+void my(int i) { q.enqueue(i); }
 
-void my2(int i){
-  int a = q.deque();
-}
+void my2(int i) { int a = q.deque(); }
 
 int main() {
 
   // defining a sentinel node for the queue and iniitializing a lock free queue
-  
 
   // testing the queue
-  // q.enqueue(10);
-  // printQ(q);
-  // q.enqueue(20);
-  // q.deque();
-  // printQ(q);
-
-  std::vector<int> v;
-  for(int i = 0; i < 1000; i++){
-    v.push_back(i);
-  } 
-
-  for_each(v.begin(), v.end(), my);
-  // printQ(q);
-  // for_each(v.begin() + 100, v.end(), my2);
-  // printQ(q);
-
- 
+  auto range = boost::irange(1,1000001);
+  auto range2 = boost::irange(1,1000000);
+  std::for_each(std::execution::par, std::begin(range), std::end(range), my);
+  printQ(q);
+  std::cout<<"\n"<<"\n"<<"\n";
+  std::for_each(std::execution::par, std::begin(range2), std::end(range2), my2);
+  printQ(q);
 }
