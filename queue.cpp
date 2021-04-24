@@ -1,10 +1,10 @@
-#include <algorithm>
+#include "tbb/task_scheduler_init.h"
 #include <atomic>
-#include <execution>
-#include <iostream>
-#include <vector>
 #include <boost/range/irange.hpp>
-
+#include <chrono>
+#include <execution>
+#include <iomanip>
+#include <iostream>
 template <class T> class Node {
   // Node class representing a node of a linked list consiisting of a value data
   // field and a pointer to the next node.
@@ -13,11 +13,11 @@ public:
   Node *next;
   std::atomic<Node<T> *> next1;
 
-  // Constructor of the Node Class. Initializing the next pointer to Null.
+  // Constructor of the Node Class. Initializing the next pointer to nullptr.
   Node(T value) {
     this->value = value;
     // this->next1;
-    this->next = NULL;
+    this->next = nullptr;
   }
 };
 
@@ -38,7 +38,7 @@ public:
 
   {}
 
-  inline void enqueue(T value) {
+  void enqueue(T value) {
     // initializing  the Node to be added
     Node<T> *temp = new Node<T>(value);
     std::atomic<Node<T> *> t(temp);
@@ -56,7 +56,7 @@ public:
 
         // if this is not the case then the tail pointer at the wrong node.
         if (last.load(std::memory_order_relaxed)
-                ->next1.load(std::memory_order_relaxed) == NULL) {
+                ->next1.load(std::memory_order_relaxed) == nullptr) {
           // atomically adding the node to be appended to the linked list
 
           if (last.load(std::memory_order_relaxed)
@@ -71,7 +71,8 @@ public:
               tail.compare_exchange_strong(a, t.load(std::memory_order_relaxed),
                                            std::memory_order_release,
                                            std::memory_order_relaxed);
-              head.compare_exchange_strong(p, t.load(std::memory_order_relaxed), std::memory_order_release,
+              head.compare_exchange_strong(p, t.load(std::memory_order_relaxed),
+                                           std::memory_order_release,
                                            std::memory_order_relaxed);
             }
             // updating the tail pointer and as the node is appended so function
@@ -89,7 +90,7 @@ public:
           // updated. comparing the tail pointer with the last to check if no
           // new node is appended and then updating it to the actual last
           // position
-       
+
           Node<T> *c = last.load(std::memory_order_relaxed);
           tail.compare_exchange_strong(
               c,
@@ -101,7 +102,7 @@ public:
     }
   }
 
-  inline T deque() {
+  T deque() {
 
     // looping untill the node is dequed
     while (true) {
@@ -114,7 +115,7 @@ public:
         // the case for the empty queue
         if (first == p)
           throw std::underflow_error("called deque on an empty queue");
-        else if (next.load(std::memory_order_relaxed) == NULL) {
+        else if (next.load(std::memory_order_relaxed) == nullptr) {
           Node<T> *a = head.load(std::memory_order_relaxed);
           head.compare_exchange_strong(a, p, std::memory_order_release,
                                        std::memory_order_relaxed);
@@ -123,7 +124,7 @@ public:
                                        std::memory_order_relaxed);
 
           tail.load(std::memory_order_relaxed)
-              ->next1.compare_exchange_strong(a, NULL,
+              ->next1.compare_exchange_strong(a, nullptr,
                                               std::memory_order_release,
                                               std::memory_order_relaxed);
           return first.load(std::memory_order_relaxed)->value;
@@ -158,35 +159,43 @@ public:
 };
 
 void printQ(Lock_Free_Queue<int> &q) {
-  int count=0;
+  int count = 0;
 
   Node<int> *t = q.head.load(std::memory_order_relaxed);
-  while (t != NULL) {
+  while (t != nullptr) {
     std::cout << t->value << " ";
     count++;
     t = t->next1.load(std::memory_order_relaxed);
   }
   std::cout << "\n";
-  std::cout<<count<<"\n";
+  std::cout << "No of elements -> " << count << "\n";
 }
 
 Node<int> *sentinal = new Node<int>(-1);
 Lock_Free_Queue<int> q(sentinal);
 
-void my(int i) { q.enqueue(i); }
+void enqueuer(int i) { q.enqueue(i); }
 
-void my2(int i) { int a = q.deque(); }
+void dequer(int i) { int a = q.deque(); }
 
 int main() {
 
   // defining a sentinel node for the queue and iniitializing a lock free queue
 
   // testing the queue
-  auto range = boost::irange(1,1000001);
-  auto range2 = boost::irange(1,1000000);
-  std::for_each(std::execution::par, std::begin(range), std::end(range), my);
-  printQ(q);
-  std::cout<<"\n"<<"\n"<<"\n";
-  std::for_each(std::execution::par, std::begin(range2), std::end(range2), my2);
-  printQ(q);
+  tbb::task_scheduler_init init(8);
+  auto range = boost::irange(1, 1000001);
+
+  auto start = std::chrono::high_resolution_clock::now();
+  std::for_each(std::execution::par, std::begin(range), std::end(range),
+                enqueuer);
+  auto end = std::chrono::high_resolution_clock::now();
+  double time_taken =
+      std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+
+  time_taken *= 1e-9;
+
+  std::cout << "Time taken by program is : " << std::fixed << time_taken
+            << std::setprecision(9);
+  std::cout << " sec";
 }
