@@ -1,7 +1,0 @@
-No of threads -> 1  Time taken by program is : 0.164945 sec
-No of threads -> 2  Time taken by program is : 0.200467452 sec
-No of threads -> 3  Time taken by program is : 0.238866999 sec
-No of threads -> 4  Time taken by program is : 0.267958429 sec
-No of threads -> 5  Time taken by program is : 0.285759199 sec
-No of threads -> 6  Time taken by program is : 0.318974907 sec
-No of threads -> 7  Time taken by program is : 0.352117089 sec
