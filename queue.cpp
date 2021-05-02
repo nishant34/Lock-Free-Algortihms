@@ -5,6 +5,7 @@
 #include <execution>
 #include <iomanip>
 #include <iostream>
+
 template <class T> class Node {
   // Node class representing a node of a linked list consiisting of a value data
   // field and a pointer to the next node.
@@ -41,7 +42,7 @@ public:
   void enqueue(T value) {
     // initializing  the Node to be added
     Node<T> *temp = new Node<T>(value);
-    std::atomic<Node<T> *> t(temp);
+    // std::atomic<Node<T> *> t(temp);
 
     // Unless the current node is finally able to append itself it should keep
     // on trying. The loop will continue untill Nodes other than the current are
@@ -49,38 +50,30 @@ public:
     // function called returns.
     while (true) {
       // Define a pointer to the tail node in the current fucntion
-      std::atomic<Node<T> *> last(tail.load(std::memory_order_relaxed));
+      // std::atomic<Node<T> *> last(tail.load(std::memory_order_relaxed));
+      Node<T> *last = tail.load(std::memory_order_relaxed);
       // std::cout<<"1"<<"\n";
       // if no other Node appended itself during this time.
-      if (last == tail) {
+      if (last == tail.load(std::memory_order_relaxed)) {
 
         // if this is not the case then the tail pointer at the wrong node.
-        if (last.load(std::memory_order_relaxed)
-                ->next1.load(std::memory_order_relaxed) == nullptr) {
+        if (last->next1.load(std::memory_order_relaxed) == nullptr) {
           // atomically adding the node to be appended to the linked list
 
-          if (last.load(std::memory_order_relaxed)
-                  ->next1.compare_exchange_strong(temp->next, t,
-                                                  std::memory_order_release,
-                                                  std::memory_order_relaxed)) {
+          if (last->next1.compare_exchange_strong(temp->next, temp)) {
             // comparing head with tail to check the base case which is enquing
             // the first node in our queue. So head->next needs to be updated.
 
-            if (last == head) {
-              Node<T> *a = last.load(std::memory_order_relaxed);
-              tail.compare_exchange_strong(a, t.load(std::memory_order_relaxed),
-                                           std::memory_order_release,
-                                           std::memory_order_relaxed);
-              head.compare_exchange_strong(p, t.load(std::memory_order_relaxed),
-                                           std::memory_order_release,
-                                           std::memory_order_relaxed);
+            if (last == head.load(std::memory_order_relaxed)) {
+              // Node<T> *a = last.load(std::memory_order_relaxed);
+              tail.compare_exchange_strong(last, temp);
+
+              head.compare_exchange_strong(p, temp);
             }
             // updating the tail pointer and as the node is appended so function
             // returns
-            Node<T> *b = last.load(std::memory_order_relaxed);
-            tail.compare_exchange_strong(b, t.load(std::memory_order_relaxed),
-                                         std::memory_order_release,
-                                         std::memory_order_relaxed);
+            // Node<T> *b = last.load(std::memory_order_relaxed);
+            tail.compare_exchange_strong(last, temp);
 
             return;
           }
@@ -91,12 +84,9 @@ public:
           // new node is appended and then updating it to the actual last
           // position
 
-          Node<T> *c = last.load(std::memory_order_relaxed);
+          // Node<T> *c = last.load(std::memory_order_relaxed);`
           tail.compare_exchange_strong(
-              c,
-              last.load(std::memory_order_relaxed)
-                  ->next1.load(std::memory_order_relaxed),
-              std::memory_order_release, std::memory_order_relaxed);
+              last, last->next1.load(std::memory_order_relaxed));
         }
       }
     }
@@ -106,51 +96,44 @@ public:
 
     // looping untill the node is dequed
     while (true) {
-      std::atomic<Node<T> *> first(head.load(std::memory_order_relaxed));
-      std::atomic<Node<T> *> next(first.load(std::memory_order_relaxed)->next);
-      std::atomic<Node<T> *> last(tail.load(std::memory_order_relaxed));
+      // std::atomic<Node<T> *> first(head.load(std::memory_order_relaxed));
+      Node<T> *first = head.load(std::memory_order_relaxed);
+      // std::atomic<Node<T> *> next(first->next);
+      Node<T> *f_next = first->next;
+      // std::atomic<Node<T> *> last(tail.load(std::memory_order_relaxed));
+      Node<T> *last = tail.load(std::memory_order_relaxed);
       Node<T> *p1;
       // Checking the empty queue case
       if (first == last) {
         // the case for the empty queue
         if (first == p)
           throw std::underflow_error("called deque on an empty queue");
-        else if (next.load(std::memory_order_relaxed) == nullptr) {
+        else if (f_next == nullptr) {
           Node<T> *a = head.load(std::memory_order_relaxed);
-          head.compare_exchange_strong(a, p, std::memory_order_release,
-                                       std::memory_order_relaxed);
+          head.compare_exchange_strong(a, p);
           Node<T> *b = tail.load(std::memory_order_relaxed);
-          tail.compare_exchange_strong(b, p, std::memory_order_release,
-                                       std::memory_order_relaxed);
+          tail.compare_exchange_strong(b, p);
 
           tail.load(std::memory_order_relaxed)
-              ->next1.compare_exchange_strong(a, nullptr,
-                                              std::memory_order_release,
-                                              std::memory_order_relaxed);
-          return first.load(std::memory_order_relaxed)->value;
+              ->next1.compare_exchange_strong(a, nullptr);
+          return first->value;
         } else {
           // tail pointer was incorrectly placed.
-          Node<T> *a = last.load(std::memory_order_relaxed);
+          // Node<T> *a = last.load(std::memory_order_relaxed);
           tail.compare_exchange_strong(
-              a,
-              head.load(std::memory_order_relaxed)
-                  ->next1.load(std::memory_order_relaxed),
-              std::memory_order_release, std::memory_order_relaxed);
+              last, head.load(std::memory_order_relaxed)
+                        ->next1.load(std::memory_order_relaxed));
         }
       } else {
-        // the value to be dequed will be returned by the fucntion
-        T value = first.load(std::memory_order_relaxed)->value;
 
         // if head is same as first i.e. no new node appended then just update
         // the head pointer and return.
-        Node<T> *b = first.load(std::memory_order_relaxed);
+        // Node<T> *b = first.load(std::memory_order_relaxed);
 
         if (head.compare_exchange_strong(
-                b,
-                head.load(std::memory_order_relaxed)
-                    ->next1.load(std::memory_order_relaxed),
-                std::memory_order_release, std::memory_order_relaxed)) {
-          return value;
+                first, head.load(std::memory_order_relaxed)
+                           ->next1.load(std::memory_order_relaxed))) {
+          return first->value;
         }
       }
     }
@@ -176,15 +159,16 @@ Lock_Free_Queue<int> q(sentinal);
 
 void enqueuer(int i) { q.enqueue(i); }
 
-void dequer(int i) { int a = q.deque(); }
+void dequer(int i) { q.deque(); }
 
-int main() {
+int main(int argc, char *argv[]) {
 
   // defining a sentinel node for the queue and iniitializing a lock free queue
 
   // testing the queue
-  tbb::task_scheduler_init init(8);
-  auto range = boost::irange(1, 1000001);
+  int cores = std::atoi(argv[1]);
+  tbb::task_scheduler_init init(cores);
+  auto range = boost::irange(1, 65535);
 
   auto start = std::chrono::high_resolution_clock::now();
   std::for_each(std::execution::par, std::begin(range), std::end(range),
@@ -195,7 +179,6 @@ int main() {
 
   time_taken *= 1e-9;
 
-  std::cout << "Time taken by program is : " << std::fixed << time_taken
-            << std::setprecision(9);
+  std::cout << "Time : " << std::fixed << time_taken << std::setprecision(9);
   std::cout << " sec";
 }
