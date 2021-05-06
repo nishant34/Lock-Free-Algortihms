@@ -11,3 +11,10 @@
 * boostq.cpp: Using the standard boost lock free queue for testing.
 * concurrent.h: This is taken from official implementation of moodycamel to run its lock free queue.
 
+# Running the files
+To run the files use the following command on the terimal
+
+```javascript
+g++ filename -ltbb -std=c++17 -O3
+./a.out num_threads
+```
